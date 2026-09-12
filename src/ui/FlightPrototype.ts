@@ -4,6 +4,7 @@ import { PoseController } from '../pose/PoseController.ts'
 import { PoseRenderer } from '../pose/PoseRenderer.ts'
 import type { PoseLandmarkerService } from '../pose/PoseLandmarkerService.ts'
 import type { PoseMeasurements } from '../pose/PoseTypes.ts'
+import { usesIPadPerformanceProfile } from '../platform/deviceProfile.ts'
 import { FlightRecords } from '../systems/FlightRecords.ts'
 
 type GameScreenState = 'ready' | 'loading' | 'arming' | 'flying' | 'paused' | 'results' | 'error'
@@ -158,15 +159,16 @@ export class FlightPrototype {
     this.setState('loading', 'STARTING')
 
     try {
+      const useIPadProfile = usesIPadPerformanceProfile()
       this.stream = await navigator.mediaDevices.getUserMedia({
         audio: false,
-        // A 30 fps, 960 px stream keeps body control responsive on laptops
-        // and phones without asking MediaPipe to inspect unnecessary pixels.
+        // iPad Safari shares memory between its WebGL contexts and camera
+        // frames, so use a smaller stream before pose tracking begins.
         video: {
           facingMode: 'user',
-          width: { ideal: 960, max: 1280 },
-          height: { ideal: 540, max: 720 },
-          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: useIPadProfile ? 640 : 960, max: useIPadProfile ? 960 : 1280 },
+          height: { ideal: useIPadProfile ? 480 : 540, max: useIPadProfile ? 540 : 720 },
+          frameRate: { ideal: useIPadProfile ? 24 : 30, max: useIPadProfile ? 24 : 30 },
         },
       })
       await this.createPoseService()

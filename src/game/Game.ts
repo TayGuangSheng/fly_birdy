@@ -11,6 +11,7 @@ import { Bird } from './Bird.ts'
 import { CameraController } from './CameraController.ts'
 import { FlightEffects } from './FlightEffects.ts'
 import { FlightController, type FlightState } from './FlightController.ts'
+import { usesIPadPerformanceProfile } from '../platform/deviceProfile.ts'
 
 const neutralInput: FlightInput = {
   roll: 0,
@@ -84,10 +85,17 @@ export class Game {
 
   public constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFShadowMap
+    const useIPadProfile = usesIPadPerformanceProfile()
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      // Leave room for the pose-tracking WebGL context on iPadOS.
+      antialias: !useIPadProfile,
+      precision: useIPadProfile ? 'mediump' : 'highp',
+      powerPreference: useIPadProfile ? 'default' : 'high-performance',
+    })
+    this.renderer.setPixelRatio(useIPadProfile ? 1 : Math.min(window.devicePixelRatio, 2))
+    this.renderer.shadowMap.enabled = !useIPadProfile
+    if (!useIPadProfile) this.renderer.shadowMap.type = THREE.PCFShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
     this.renderer.toneMappingExposure = 1.08
