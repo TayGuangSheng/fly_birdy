@@ -226,8 +226,13 @@ export class Game {
     }
 
     if (this.courseActive && !this.gameOver && !this.trackingPaused) {
-      this.course.update(this.state, profile, elapsedSeconds)
-      this.score.addDistance(runDistance)
+      if (this.environments.collidesWithMassif(this.state.position, gameConfig.birdCollisionRadius)) {
+        this.handleCourseEvent({ type: 'collision' })
+      }
+      if (!this.gameOver) {
+        this.course.update(this.state, profile, elapsedSeconds)
+        this.score.addDistance(runDistance)
+      }
     } else if (this.gameOver) {
       this.crashRemaining -= rawDeltaSeconds
     }

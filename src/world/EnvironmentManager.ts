@@ -7,7 +7,21 @@ const CHUNK_SIZE = 72
 const CHUNK_COLUMNS = [-2, -1, 0, 1, 2]
 const CHUNK_ROWS = [-4, -3, -2, -1, 0, 1, 2, 3]
 
-type EnvironmentChunk = { group: THREE.Group; column: number; row: number; themeId: EnvironmentId }
+interface MassifCollider {
+  x: number
+  z: number
+  groundHeight: number
+  radius: number
+  height: number
+}
+
+type EnvironmentChunk = {
+  group: THREE.Group
+  column: number
+  row: number
+  themeId: EnvironmentId
+  massifColliders: MassifCollider[]
+}
 
 export interface EnvironmentSnapshot {
   id: EnvironmentId
@@ -33,7 +47,7 @@ export class EnvironmentManager {
       for (const row of CHUNK_ROWS) {
         const group = new THREE.Group()
         this.root.add(group)
-        const chunk = { group, column, row, themeId: 'valley' as EnvironmentId }
+        const chunk = { group, column, row, themeId: 'valley' as EnvironmentId, massifColliders: [] }
         this.chunks.push(chunk)
         this.rebuildChunk(chunk)
       }
@@ -74,6 +88,24 @@ export class EnvironmentManager {
     this.scene.remove(this.root)
   }
 
+  /** Keep the Red Rock Canyon's visible mountains as solid as course spires. */
+  public collidesWithMassif(position: THREE.Vector3, birdRadius: number): boolean {
+    for (const chunk of this.chunks) {
+      for (const massif of chunk.massifColliders) {
+        const horizontalDistance = Math.hypot(position.x - massif.x, position.z - massif.z)
+        if (horizontalDistance > massif.radius + birdRadius) continue
+
+        // The faceted mesh tapers from a broad, grounded base into a peak. A
+        // matching tapered collision volume avoids passing through a visible
+        // canyon wall while still allowing flight cleanly over its summit.
+        const surfaceProgress = THREE.MathUtils.clamp(horizontalDistance / massif.radius, 0, 1)
+        const mountainSurface = massif.groundHeight + massif.height * (1 - surfaceProgress)
+        if (position.y - birdRadius <= mountainSurface && position.y + birdRadius >= massif.groundHeight) return true
+      }
+    }
+    return false
+  }
+
   private recycleChunks(state: FlightState, distance: number): void {
     const { position } = state
     const centralColumn = Math.floor(position.x / CHUNK_SIZE)
@@ -103,6 +135,7 @@ export class EnvironmentManager {
 
   private rebuildChunk(chunk: EnvironmentChunk): void {
     this.clearChunk(chunk.group)
+    chunk.massifColliders.length = 0
     chunk.group.position.set(chunk.column * CHUNK_SIZE, 0, chunk.row * CHUNK_SIZE)
     const random = this.createRandom(this.seedFor(chunk.themeId, chunk.column, chunk.row))
     if (chunk.themeId === 'valley') this.populateValley(chunk, random)
@@ -185,20 +218,27 @@ export class EnvironmentManager {
     const localZ = -29 + random() * 58
     const height = 28 + random() * 16
     const mainMaterial = random() < 0.5 ? warmRock : sunRock
-    chunk.group.add(this.createMassif(chunk, random, localX, localZ, 10 + random() * 4, height, mainMaterial))
+    const radius = 10 + random() * 4
+    chunk.group.add(this.createMassif(chunk, random, localX, localZ, radius, height, mainMaterial))
+    this.addMassifCollider(chunk, localX, localZ, radius, height)
 
     const shoulderMaterial = mainMaterial === warmRock ? sunRock : warmRock
+    const shoulderX = localX + side * (8 + random() * 6)
+    const shoulderZ = localZ + (random() - 0.5) * 18
+    const shoulderRadius = 5.5 + random() * 3.5
+    const shoulderHeight = 13 + random() * 11
     chunk.group.add(
       this.createMassif(
         chunk,
         random,
-        localX + side * (8 + random() * 6),
-        localZ + (random() - 0.5) * 18,
-        5.5 + random() * 3.5,
-        13 + random() * 11,
+        shoulderX,
+        shoulderZ,
+        shoulderRadius,
+        shoulderHeight,
         shoulderMaterial,
       ),
     )
+    this.addMassifCollider(chunk, shoulderX, shoulderZ, shoulderRadius, shoulderHeight)
   }
 
   private populateCloudKingdom(chunk: EnvironmentChunk, random: () => number): void {
@@ -366,6 +406,23 @@ export class EnvironmentManager {
 
   private placeOnGround(object: THREE.Object3D, chunk: EnvironmentChunk, localX: number, localZ: number, lift = 0): void {
     object.position.set(localX, this.groundAt(chunk, localX, localZ) + lift, localZ)
+  }
+
+  private addMassifCollider(
+    chunk: EnvironmentChunk,
+    localX: number,
+    localZ: number,
+    radius: number,
+    height: number,
+  ): void {
+    chunk.massifColliders.push({
+      x: chunk.group.position.x + localX,
+      z: chunk.group.position.z + localZ,
+      groundHeight: this.groundAt(chunk, localX, localZ),
+      // The outer faceted ring varies by up to 12% from the authored radius.
+      radius: radius * 1.14,
+      height: height * 1.08,
+    })
   }
 
   private groundAt(chunk: EnvironmentChunk, localX: number, localZ: number): number {
