@@ -1,0 +1,28 @@
+export const gameConfig = {
+  forwardSpeed: 70,
+  maximumYawRate: 1.35,
+  maximumVerticalSpeed: 11,
+  // Pose commands drive orientation immediately. Only the physical rise/fall
+  // keeps a short response curve so the bird does not teleport vertically.
+  verticalVelocityResponse: 24,
+  maximumBank: 0.68,
+  maximumPitch: 0.42,
+  minimumAltitude: 5,
+  maximumAltitude: 68,
+  groundClearance: 4.2,
+  cameraGroundClearance: 2.8,
+  chaseDistance: 13,
+  chaseHeight: 5.6,
+  chaseResponse: 9,
+  lookAhead: 19,
+  steeringInputGain: 1.15,
+  verticalInputGain: 1.35,
+  inputDeadZone: 0.08,
+  controlConfidenceThreshold: 0.28,
+  maxDeltaSeconds: 1 / 20,
+  birdCollisionRadius: 1.15,
+  courseSpawnAhead: 145,
+  courseDespawnBehind: 70,
+  crashSlowMotionSeconds: 0.72,
+  crashTimeScale: 0.16,
+} as const
